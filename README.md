@@ -5,38 +5,46 @@ This repository contains simple steps to set up a YugabyteDB CDC pipeline to get
 ## Running the CDC pipeline
 The following example uses a PostgreSQL database as the sink database, which will be populated using a JDBC Sink Connector.
 
-1. Start YugabyteDB
-    This can be a local instance as well as a universe running on Yugabyte Anywhere. All you need is the IP of the nodes where the tserver and master processes are running.
-    ```sh
-    export NODE=<IP-OF-YOUR-NODE>
-    export MASTERS=<MASTER-ADDRESSES>
-    ```
-  
-2. Create a table
-    This example uses the [Retail Analytics](https://docs.yugabyte.com/preview/sample-data/retail-analytics/) dataset provided by Yugabyte. All the SQL scripts are also copied in this repository for the ease of use, to create the tables in the dataset, use the file 
-  
-    ```sql
-    \i scripts/schema.sql
-    ```
-  
-3. Create a stream ID using yb-admin
-    ```
-    ./yb-admin --master_addresses $MASTERS create_change_data_stream ysql.<namespace>
-    ```
-  
-4. Start the docker containers
+1. Start the docker containers
 
     ```sh
     docker-compose up -d
     ```
-  
+
+2. Create a stream ID using yb-admin
+    ```
+    docker exec -it yb-master-n1 sh -c 'exec bin/yb-admin --master_addresses yb-master-n1 create_change_data_stream ysql.yugabyte'
+    ```
+    or using
+    ```
+    export STREAM_ID=$(docker exec -it yb-master-n1 sh -c 'exec bin/yb-admin --master_addresses yb-master-n1 create_change_data_stream ysql.yugabyte' | awk -F ': ' '{print $2}')
+    ```
+
+3. Create a table
+    This example uses the [Retail Analytics](https://docs.yugabyte.com/preview/sample-data/retail-analytics/) dataset provided by Yugabyte. All the SQL scripts are also copied in this repository for the ease of use, to create the tables in the dataset, use the file 
+
+    ```sql
+    \i scripts/schema.sql
+    ```
+
+4. Get YugabyteDB IPs
+    This can be a local instance as well as a universe running on Yugabyte Anywhere. All you need is the IP of the nodes where the tserver and master processes are running.
+    ```sh
+    export NODE=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yb-tserver-n1)
+    export MASTERS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yb-master-n1)
+    ```
+
 5. Deploy the source connector:
 
     ```sh
-    ./deploy-sources.sh <stream-id-created-in-step-3>
+    ./deploy-sources.sh <stream-id-created-in-step-2>
     ```
-  
-6. Deploy the sink connector
+    or using
+     ```sh
+     ./deploy-sources.sh $STREAM_ID
+     ```
+
+6. Deploy the sink connector (create the table first on the target)
     ```sh
     ./deploy-sinks.sh
     ```
